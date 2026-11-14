@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ajedrez</title>
+  <link rel="stylesheet" href="./src/styles/main.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="top">
+      <div class="brand">
+        <span class="mark">♞</span>
+        <div>
+          <strong>Ajedrez</strong>
+          <small>Clásico · Didáctico</small>
+        </div>
+      </div>
+      <button id="open-api" type="button">Configurar API</button>
+    </header>
+    <main id="setup" class="setup"></main>
+    <main id="game" class="game" hidden>
+      <section class="stage">
+        <div class="clock-row">
+          <div id="clock-top" class="clock"></div>
+          <div id="board-root"></div>
+          <div id="status-line" class="status-line"></div>
+          <div id="clock-bottom" class="clock"></div>
+        </div>
+      </section>
+      <aside id="side-root"></aside>
+    </main>
+  </div>
+  <dialog id="api-dialog">
+    <form id="api-form">
+      <h2>Rival por API</h2>
+      <p class="hint">Si no hay clave, o la API devuelve una jugada ilegal, entra el minimax local. La clave no sale de este navegador salvo hacia el endpoint que indiques.</p>
+      <label>Clave
+        <input id="api-key" type="password" autocomplete="off" placeholder="xai-…" />
+      </label>
+      <label>Endpoint
+        <input id="api-endpoint" type="url" value="https://api.x.ai/v1/chat/completions" />
+      </label>
+      <label>Modelo
+        <select id="api-model">
+          <option value="grok-3">grok-3</option>
+          <option value="grok-3-mini">grok-3-mini</option>
+          <option value="custom">Otro</option>
+        </select>
+      </label>
+      <label>Modelo personalizado
+        <input id="api-model-custom" type="text" placeholder="solo si elegiste Otro" />
+      </label>
+      <p class="hint">Con <code>npm start</code>, las llamadas a api.x.ai pasan por este servidor y evitan el bloqueo CORS del navegador.</p>
+      <p id="api-result" class="hint"></p>
+      <div class="dialog-actions">
+        <button id="api-close" type="button">Cerrar</button>
+        <button id="api-test" type="button">Probar</button>
+        <button type="submit">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+  <div id="toast" hidden></div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
