@@ -8,7 +8,7 @@ const STAR = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.2 7.3 4.
 const FROST = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1v10M2.2 3.2l7.6 5.6M9.8 3.2 2.2 8.8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>';
 
 export function pieceSVG(type, color) {
-  return `<svg class="fig ${color}" viewBox="0 0 45 45" aria-hidden="true">${PIECES[`${type}${color}`] || ''}</svg>`;
+  return `<svg class="fig ${color}" viewBox="0 0 50 50" aria-hidden="true">${PIECES[`${type}${color}`] || ''}</svg>`;
 }
 
 export function mountBoard(root, handlers) {
