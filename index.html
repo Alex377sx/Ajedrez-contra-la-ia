@@ -4,31 +4,55 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Ajedrez</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@440;520;640&family=JetBrains+Mono:wght@450;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./src/styles/main.css" />
 </head>
 <body>
   <div id="app">
     <header class="top">
       <div class="brand">
-        <span class="mark">♞</span>
-        <div>
-          <strong>Ajedrez</strong>
-          <small>Clásico · Didáctico</small>
-        </div>
+        <span class="mark" aria-hidden="true"></span>
+        <strong>Ajedrez</strong>
       </div>
-      <button id="open-api" type="button">Configurar API</button>
+      <span class="top-note">Clásico y didáctico</span>
     </header>
     <main id="setup" class="setup"></main>
-    <main id="game" class="game" hidden>
-      <section class="stage">
-        <div class="clock-row">
-          <div id="clock-top" class="clock"></div>
-          <div id="board-root"></div>
-          <div id="status-line" class="status-line"></div>
-          <div id="clock-bottom" class="clock"></div>
+    <main id="game" class="table" hidden>
+      <aside class="rail rail-left">
+        <div id="tools" class="tools"></div>
+        <div id="clock-top" class="clock"></div>
+        <div id="material" class="material"></div>
+        <div id="clock-bottom" class="clock"></div>
+        <div id="energy" class="energy"></div>
+        <div id="abilities" class="abilities"></div>
+        <div class="rail-actions">
+          <button type="button" data-act="resign">Rendirse</button>
+          <button type="button" data-act="again">Revancha</button>
+          <button type="button" data-act="setup">Salir</button>
         </div>
+      </aside>
+      <section class="stage">
+        <div id="board-root"></div>
+        <p id="status-line" class="status-line"></p>
       </section>
-      <aside id="side-root"></aside>
+      <aside class="rail rail-right">
+        <div class="rail-head">
+          <span>Partida</span>
+          <button id="open-api" type="button" title="Clave de API" aria-label="Configurar API">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 2.8v2.2M12 19v2.2M4.7 6.2l1.6 1.6M17.7 16.2l1.6 1.6M2.8 12h2.2M19 12h2.2M4.7 17.8l1.6-1.6M17.7 7.8l1.6-1.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+        <ol id="moves" class="moves"></ol>
+        <div class="chat">
+          <div id="chat-log" class="chat-log"></div>
+          <form id="chat-form" class="chat-form">
+            <input name="text" maxlength="400" placeholder="Mensaje para la IA" autocomplete="off" />
+            <button type="submit">Enviar</button>
+          </form>
+        </div>
+      </aside>
     </main>
   </div>
   <dialog id="api-dialog">

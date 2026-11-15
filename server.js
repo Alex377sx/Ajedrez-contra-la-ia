@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
@@ -14,6 +15,7 @@ const types = {
   '.json': 'application/json',
   '.ico': 'image/x-icon',
 };
+const rooms = new Map();
 
 function lanAddresses() {
   const urls = [];
@@ -89,14 +91,218 @@ function serveStatic(req, res) {
       res.end('No encontrado');
       return;
     }
-    res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream' });
+    const headers = { 'Content-Type': types[path.extname(file)] || 'application/octet-stream' };
+    if (req.method === 'HEAD') {
+      res.writeHead(200, headers);
+      res.end();
+      return;
+    }
+    res.writeHead(200, headers);
     res.end(data);
   });
 }
 
+function roomCode() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  do {
+    code = '';
+    const bytes = randomBytes(4);
+    for (const byte of bytes) code += alphabet[byte % alphabet.length];
+  } while (rooms.has(code));
+  return code;
+}
+
+function sendText(socket, text) {
+  if (!socket || socket.destroyed) return;
+  const data = Buffer.from(text);
+  const len = data.length;
+  let header;
+  if (len < 126) header = Buffer.from([0x81, len]);
+  else if (len < 65536) {
+    header = Buffer.alloc(4);
+    header[0] = 0x81;
+    header[1] = 126;
+    header.writeUInt16BE(len, 2);
+  } else {
+    header = Buffer.alloc(10);
+    header[0] = 0x81;
+    header[1] = 127;
+    header.writeBigUInt64BE(BigInt(len), 2);
+  }
+  socket.write(Buffer.concat([header, data]));
+}
+
+function sendJson(socket, payload) {
+  sendText(socket, JSON.stringify(payload));
+}
+
+function attachSocket(socket, onMessage, onClose) {
+  let buf = Buffer.alloc(0);
+  let fragments = [];
+  let closed = false;
+  const finish = () => {
+    if (closed) return;
+    closed = true;
+    onClose();
+  };
+  socket.on('data', (chunk) => {
+    buf = Buffer.concat([buf, chunk]);
+    while (buf.length >= 2) {
+      const opcode = buf[0] & 0x0f;
+      const fin = (buf[0] & 0x80) !== 0;
+      const masked = (buf[1] & 0x80) !== 0;
+      let len = buf[1] & 0x7f;
+      let offset = 2;
+      if (len === 126) {
+        if (buf.length < 4) return;
+        len = buf.readUInt16BE(2);
+        offset = 4;
+      } else if (len === 127) {
+        if (buf.length < 10) return;
+        const big = buf.readBigUInt64BE(2);
+        if (big > 1_000_000n) {
+          socket.destroy();
+          finish();
+          return;
+        }
+        len = Number(big);
+        offset = 10;
+      }
+      const maskLen = masked ? 4 : 0;
+      if (buf.length < offset + maskLen + len) return;
+      let payload = buf.subarray(offset + maskLen, offset + maskLen + len);
+      if (masked) {
+        const mask = buf.subarray(offset, offset + 4);
+        payload = Buffer.from(payload);
+        for (let i = 0; i < payload.length; i += 1) payload[i] ^= mask[i % 4];
+      }
+      buf = buf.subarray(offset + maskLen + len);
+      if (opcode === 0x8) {
+        socket.end();
+        finish();
+        return;
+      }
+      if (opcode === 0x9) {
+        const pong = Buffer.concat([Buffer.from([0x8a, payload.length]), payload]);
+        socket.write(pong);
+        continue;
+      }
+      if (opcode === 0x1) fragments = [payload];
+      else if (opcode === 0x0) fragments.push(payload);
+      else continue;
+      if (fin) {
+        const text = Buffer.concat(fragments).toString('utf8');
+        fragments = [];
+        onMessage(text);
+      }
+    }
+  });
+  socket.on('close', finish);
+  socket.on('error', finish);
+}
+
+function broadcast(room, payload) {
+  for (const seat of [room.host, room.guest]) {
+    if (seat?.socket) sendJson(seat.socket, payload);
+  }
+}
+
+function seatByToken(room, token) {
+  if (room.host?.token === token) return room.host;
+  if (room.guest?.token === token) return room.guest;
+  return null;
+}
+
+function handleClient(socket) {
+  let room = null;
+  let seat = null;
+  const leave = () => {
+    if (!room || !seat) return;
+    const code = room.code;
+    const other = seat === room.host ? room.guest : room.host;
+    if (seat === room.host) room.host = null;
+    else room.guest = null;
+    if (other?.socket) sendJson(other.socket, { type: 'left' });
+    if (!room.host && !room.guest) rooms.delete(code);
+    room = null;
+    seat = null;
+  };
+  attachSocket(socket, (text) => {
+    let msg;
+    try {
+      msg = JSON.parse(text);
+    } catch {
+      sendJson(socket, { type: 'error', message: 'Mensaje ilegible' });
+      return;
+    }
+    if (msg.type === 'create') {
+      const code = roomCode();
+      const color = msg.color === 'b' ? 'b' : msg.color === 'w' ? 'w' : (Math.random() < 0.5 ? 'w' : 'b');
+      room = {
+        code,
+        mode: msg.mode === 'didactic' ? 'didactic' : 'classic',
+        clock: typeof msg.clock === 'string' ? msg.clock : '10+0',
+        host: { socket, token: randomBytes(16).toString('hex'), color, role: 'host' },
+        guest: null,
+      };
+      seat = room.host;
+      rooms.set(code, room);
+      sendJson(socket, {
+        type: 'lobby',
+        role: 'host',
+        room: code,
+        token: seat.token,
+        color,
+        mode: room.mode,
+        clock: room.clock,
+        urls: [`http://127.0.0.1:${port}`, ...lanAddresses()],
+      });
+      return;
+    }
+    if (msg.type === 'join') {
+      const found = rooms.get(String(msg.room || '').toUpperCase());
+      if (!found || !found.host) {
+        sendJson(socket, { type: 'error', message: 'Esa sala no existe' });
+        return;
+      }
+      if (found.guest) {
+        sendJson(socket, { type: 'error', message: 'La sala ya está completa' });
+        return;
+      }
+      room = found;
+      seat = {
+        socket,
+        token: randomBytes(16).toString('hex'),
+        color: room.host.color === 'w' ? 'b' : 'w',
+        role: 'guest',
+      };
+      room.guest = seat;
+      const info = { mode: room.mode, clock: room.clock, room: room.code };
+      sendJson(room.host.socket, { type: 'begin', ...info, color: room.host.color, token: room.host.token });
+      sendJson(socket, { type: 'begin', ...info, color: seat.color, token: seat.token });
+      return;
+    }
+    if (msg.type === 'action') {
+      const current = room && seatByToken(room, msg.token);
+      if (!current || !room.guest) {
+        sendJson(socket, { type: 'error', message: 'La sala todavía no está completa' });
+        return;
+      }
+      broadcast(room, { type: 'action', action: msg.action });
+    }
+  }, leave);
+}
+
 const server = http.createServer(async (req, res) => {
   try {
-    if (req.method === 'POST' && req.url === '/api/ai') {
+    const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    if (req.method === 'GET' && url.pathname === '/api/host') {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ urls: [`http://127.0.0.1:${port}`, ...lanAddresses()] }));
+      return;
+    }
+    if (req.method === 'POST' && url.pathname === '/api/ai') {
       await proxyAi(req, res);
       return;
     }
@@ -106,13 +312,24 @@ const server = http.createServer(async (req, res) => {
     }
     res.writeHead(405);
     res.end('Método no permitido');
-  } catch (error) {
+  } catch {
     res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Error del servidor');
   }
 });
 
+server.on('upgrade', (req, socket) => {
+  const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  const key = req.headers['sec-websocket-key'];
+  if (url.pathname !== '/ws' || !key) {
+    socket.destroy();
+    return;
+  }
+  const accept = createHash('sha1').update(`${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest('base64');
+  socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
+  handleClient(socket);
+});
+
 server.listen(port, '0.0.0.0', () => {
-  const locals = [`http://127.0.0.1:${port}`, ...lanAddresses()];
-  console.log(locals.join('\n'));
+  console.log([`http://127.0.0.1:${port}`, ...lanAddresses()].join('\n'));
 });

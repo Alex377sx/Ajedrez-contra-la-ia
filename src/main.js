@@ -1,9 +1,10 @@
 import { createGame, gameStatus, legalMoves as classicLegal, material, opposite, playMove as playClassic, insufficientMaterial, sqOf } from './core/chessEngine.js';
 import { ABILITIES, ELEVATED_SQUARES, abilityTargets, canRedo, canUndo, createDidactic, heatMap, legalMoves as didacticLegal, placeMine, playMove as playDidactic, redo, suggestedMine, tryAbility, undo } from './modes/didacticMode.js';
 import { DEFAULTS, MODELS, loadConfig, requestChat, requestHint, requestMove, saveConfig, testConnection } from './ai/apiClient.js';
-import { mountBoard } from './ui/boardRenderer.js';
-import { capturedGlyphs, mountPanels } from './ui/panels.js';
+import { mountBoard, pieceSVG } from './ui/boardRenderer.js';
+import { mountPanels } from './ui/panels.js';
 import { describeMove, setSpeechEnabled, speak, speechEnabled } from './ui/speech.js';
+import { openSocket } from './net/wifi.js';
 
 const NAMES = { w: 'Blancas', b: 'Negras' };
 const REASONS = {
@@ -40,6 +41,8 @@ const app = {
   labHold: false,
   animate: null,
   speech: speechEnabled(),
+  net: null,
+  applyingRemote: false,
 };
 
 const setupEl = document.getElementById('setup');
@@ -61,7 +64,7 @@ const board = mountBoard(document.getElementById('board-root'), {
   },
 });
 
-const panels = mountPanels(document.getElementById('side-root'), {
+const panels = mountPanels(document.getElementById('game'), {
   onRadar: () => { app.radar = !app.radar; paint(); },
   onUndo: () => labStep('undo'),
   onRedo: () => labStep('redo'),
@@ -103,7 +106,7 @@ function renderSetup() {
   title.textContent = 'Elige cómo pelear';
   const lede = document.createElement('p');
   lede.className = 'lede';
-  lede.textContent = 'Partida clásica con reloj, o el tablero didáctico: radar, veteranía, minas y energía. Contra la IA o en el mismo dispositivo.';
+    lede.textContent = 'Clásico o didáctico. Contra la IA, en el mismo dispositivo, o con alguien en la misma WiFi.';
   const modes = document.createElement('div');
   modes.className = 'modes';
   modes.append(
@@ -116,6 +119,7 @@ function renderSetup() {
     choiceField('Rival', [
       ['ai', 'Inteligencia'],
       ['local', 'Mismo dispositivo'],
+      ['wifi', 'Misma WiFi'],
     ], app.opponent, (value) => { app.opponent = value; renderSetup(); }),
     choiceField('Color', [
       ['w', 'Blancas'],
@@ -130,12 +134,16 @@ function renderSetup() {
       ['15+10', '15+10'],
     ], app.clockKind, (value) => { app.clockKind = value; }),
   );
-  const start = document.createElement('button');
-  start.className = 'start';
-  start.type = 'button';
-  start.textContent = 'Empezar partida';
-  start.addEventListener('click', startGame);
-  setupEl.append(title, lede, modes, options, start);
+  setupEl.append(title, lede, modes, options);
+  if (app.opponent === 'wifi') setupEl.append(wifiBox());
+  else {
+    const start = document.createElement('button');
+    start.className = 'start';
+    start.type = 'button';
+    start.textContent = 'Empezar partida';
+    start.addEventListener('click', startGame);
+    setupEl.append(start);
+  }
   if (app.mode === 'didactic') {
     const rules = document.createElement('ul');
     rules.className = 'rules';
@@ -189,10 +197,142 @@ function choiceField(label, options, current, onPick) {
   return field;
 }
 
+function wifiBox() {
+  const box = document.createElement('section');
+  box.className = 'lobby';
+  const copy = document.createElement('p');
+  copy.textContent = 'Una persona crea la sala en el equipo donde corre el juego. La otra abre esa misma dirección, en la misma WiFi, y entra con el código.';
+  const create = document.createElement('button');
+  create.type = 'button';
+  create.className = 'primary';
+  create.textContent = 'Crear sala';
+  create.addEventListener('click', createWifiRoom);
+  const row = document.createElement('div');
+  row.className = 'choices';
+  const input = document.createElement('input');
+  input.maxLength = 4;
+  input.placeholder = 'CÓDIGO';
+  input.setAttribute('aria-label', 'Código de sala');
+  const join = document.createElement('button');
+  join.type = 'button';
+  join.textContent = 'Unirse';
+  join.addEventListener('click', () => joinWifiRoom(input.value));
+  row.append(input, join);
+  box.append(copy, create, row);
+  return box;
+}
+
+function showLobby(msg) {
+  setupEl.hidden = false;
+  gameEl.hidden = true;
+  setupEl.replaceChildren();
+  const box = document.createElement('section');
+  box.className = 'lobby';
+  const title = document.createElement('h1');
+  title.textContent = 'Sala lista';
+  const code = document.createElement('code');
+  code.textContent = msg.room;
+  const copy = document.createElement('p');
+  copy.textContent = 'En el otro dispositivo abre una de estas direcciones y únete con el código.';
+  const urls = document.createElement('p');
+  urls.textContent = (msg.urls || []).join('   ');
+  box.append(title, code, copy, urls);
+  setupEl.append(box);
+}
+
+async function connectWifi() {
+  app.net?.close();
+  const net = openSocket();
+  await net.ready;
+  app.net = net;
+  net.listen(onNet);
+  return net;
+}
+
+async function createWifiRoom() {
+  try {
+    const net = await connectWifi();
+    net.send({
+      type: 'create',
+      mode: app.mode,
+      clock: app.clockKind,
+      color: app.human,
+    });
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function joinWifiRoom(code) {
+  try {
+    const net = await connectWifi();
+    net.send({ type: 'join', room: code });
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+function onNet(msg) {
+  if (msg.type === 'error') {
+    toast(msg.message);
+    return;
+  }
+  if (msg.type === 'lobby') {
+    showLobby(msg);
+    return;
+  }
+  if (msg.type === 'begin') {
+    beginMatch({ color: msg.color, mode: msg.mode, clock: msg.clock });
+    return;
+  }
+  if (msg.type === 'action') {
+    applyRemote(msg.action);
+    return;
+  }
+  if (msg.type === 'left') {
+    toast('El rival se desconectó.');
+    pauseClock();
+  }
+}
+
+function sendAction(action) {
+  if (app.opponent !== 'wifi' || app.applyingRemote) return false;
+  app.net?.send({ type: 'action', action });
+  return true;
+}
+
+function applyRemote(action) {
+  app.applyingRemote = true;
+  try {
+    if (action.kind === 'move') commitMove(action.input);
+    else if (action.kind === 'mine') placeUserMine(action.square);
+    else if (action.kind === 'ability') {
+      const tried = tryAbility(app.didactic, action.ability);
+      if (tried.ok) {
+        app.didactic = tried.state;
+        app.ability = null;
+        app.swapA = null;
+        pushChat('sistema', 'Habilidad gastada. Ahora la jugada de ajedrez.');
+        paint();
+      }
+    } else if (action.kind === 'undo' || action.kind === 'redo') labStep(action.kind);
+    else if (action.kind === 'resign') resign(action.color);
+  } finally {
+    app.applyingRemote = false;
+  }
+}
+
 function startGame() {
   const human = app.human === 'random' ? (Math.random() < 0.5 ? 'w' : 'b') : app.human;
+  beginMatch({ color: human });
+}
+
+function beginMatch({ color, mode, clock }) {
+  if (mode) app.mode = mode;
+  if (clock) app.clockKind = clock;
+  const human = color;
   app.human = human;
-  app.orientation = app.opponent === 'ai' ? human : 'w';
+  app.orientation = app.opponent === 'local' ? 'w' : human;
   app.ended = null;
   app.selected = null;
   app.promo = null;
@@ -226,6 +366,8 @@ function startGame() {
 
 function showSetup() {
   pauseClock();
+  app.net?.close();
+  app.net = null;
   renderSetup();
 }
 
@@ -260,8 +402,7 @@ function ended() {
 }
 
 function viewer() {
-  if (placing()) return app.didactic.mineTurn;
-  if (app.opponent === 'local') return side();
+  if (app.opponent === 'local') return placing() ? app.didactic.mineTurn : side();
   return app.human;
 }
 
@@ -331,6 +472,7 @@ function chooseMove(moves, to) {
 }
 
 function commitMove(input) {
+  if (sendAction({ kind: 'move', input })) return;
   if (timeLeft(side()) <= 0) {
     flag(side());
     return;
@@ -355,8 +497,9 @@ function commitMove(input) {
   const last = log.at(-1);
   app.animate = last ? { from: last.from, to: last.to } : null;
   if (app.speech && last) {
-    const opponent = app.opponent === 'ai' && last.color !== app.human;
-    const youLabel = app.opponent === 'ai' ? 'Tú' : NAMES[last.color];
+    const versus = app.opponent !== 'local';
+    const opponent = versus && last.color !== app.human;
+    const youLabel = versus ? 'Tú' : NAMES[last.color];
     speak(describeMove({ san: last.san, opponent, youLabel }));
   }
   soundFor(app.mode === 'didactic' ? app.didactic.lastEvents : eventsFromClassic(before));
@@ -377,6 +520,7 @@ function eventsFromClassic(before) {
 }
 
 function placeUserMine(square) {
+  if (sendAction({ kind: 'mine', square })) return;
   try {
     app.didactic = placeMine(app.didactic, square);
   } catch (error) {
@@ -437,6 +581,11 @@ function aimAbility(square) {
     toast(result?.error || 'No se pudo usar la habilidad');
     return;
   }
+  const ability = app.ability === 'freeze' ? { type: 'freeze', target: alg }
+    : app.ability === 'reinforce' ? { type: 'reinforce', square: alg }
+      : app.ability === 'emergencyCastle' ? { type: 'emergencyCastle', rook: alg }
+        : { type: 'swap', a: app.swapA, b: alg };
+  if (sendAction({ kind: 'ability', ability })) return;
   app.didactic = result.state;
   app.ability = null;
   app.swapA = null;
@@ -446,6 +595,7 @@ function aimAbility(square) {
 
 function labStep(kind) {
   if (app.mode !== 'didactic') return;
+  if (sendAction({ kind })) return;
   pauseClock();
   const next = kind === 'undo' ? undo(app.didactic) : redo(app.didactic);
   if (next === app.didactic) return;
@@ -513,9 +663,10 @@ async function sendChat(text) {
   paint();
 }
 
-function resign() {
+function resign(color) {
   if (ended().over || placing()) return;
-  const loser = app.opponent === 'ai' ? app.human : side();
+  const loser = color || (app.opponent === 'local' ? side() : app.human);
+  if (sendAction({ kind: 'resign', color: loser })) return;
   closeGame(opposite(loser), 'resign');
 }
 
@@ -658,7 +809,11 @@ function fillClock(node, color) {
   name.textContent = NAMES[color];
   const taken = document.createElement('span');
   taken.className = 'taken';
-  taken.textContent = capturedGlyphs(core().taken, color);
+  for (const type of core().taken?.[color] || []) {
+    const icon = document.createElement('i');
+    icon.innerHTML = pieceSVG(type, color === 'w' ? 'b' : 'w');
+    taken.appendChild(icon);
+  }
   who.append(name, taken);
   const time = document.createElement('b');
   time.textContent = app.clocks ? formatClock(left) : '∞';
