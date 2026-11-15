@@ -16,17 +16,21 @@
         <span class="mark" aria-hidden="true"></span>
         <strong>Ajedrez</strong>
       </div>
-      <span class="top-note">v1.3</span>
+      <span class="top-note">v1.4</span>
     </header>
     <main id="setup" class="setup"></main>
     <main id="game" class="table" hidden>
       <aside class="rail rail-left">
         <div id="tools" class="tools"></div>
         <div id="clock-top" class="clock"></div>
-        <div id="material" class="material"></div>
+        <div id="captures-top" class="captures"></div>
+        <div id="didactic" class="didactic-box" hidden>
+          <div id="didactic-tools" class="tools"></div>
+          <div id="energy" class="energy"></div>
+          <div id="abilities" class="abilities"></div>
+        </div>
         <div id="clock-bottom" class="clock"></div>
-        <div id="energy" class="energy"></div>
-        <div id="abilities" class="abilities"></div>
+        <div id="captures-bottom" class="captures"></div>
         <div class="rail-actions">
           <button type="button" data-act="resign">Rendirse</button>
           <button type="button" data-act="again">Revancha</button>
@@ -40,11 +44,19 @@
       <aside class="rail rail-right">
         <div class="rail-head">
           <span>Partida</span>
+          <span id="engine-status" class="engine-status"><i></i><b>Motor local</b></span>
           <button id="open-api" type="button" title="Clave de API" aria-label="Configurar API">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 2.8v2.2M12 19v2.2M4.7 6.2l1.6 1.6M17.7 16.2l1.6 1.6M2.8 12h2.2M19 12h2.2M4.7 17.8l1.6-1.6M17.7 7.8l1.6-1.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
           </button>
         </div>
-        <ol id="moves" class="moves"></ol>
+        <div class="history">
+          <table id="moves" class="moves">
+            <thead>
+              <tr><th>#</th><th>Blancas</th><th>Negras</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
         <div class="chat">
           <div id="chat-log" class="chat-log"></div>
           <form id="chat-form" class="chat-form">

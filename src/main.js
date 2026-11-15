@@ -41,6 +41,7 @@ const app = {
   labHold: false,
   animate: null,
   speech: speechEnabled(),
+  engine: null,
   net: null,
   applyingRemote: false,
 };
@@ -635,6 +636,7 @@ async function aiTurn() {
     const tried = tryAbility(app.didactic, choice.ability);
     if (tried.ok) app.didactic = tried.state;
   }
+  app.engine = choice.source === 'api' ? 'api' : 'local';
   if (choice.chat_message) pushChat('rival', choice.chat_message);
   commitMove(choice);
 }
@@ -770,30 +772,51 @@ function paint() {
       disabled: !myTurn() || app.mode !== 'didactic' || abilityTargets(app.didactic, ability.type).length === 0,
     })),
     chat: app.chat,
+    engine: engineMode(),
   });
-  statusEl.textContent = statusText(report);
-  paintClocks();
+  paintStatus(report);
+  paintClocks(mat.advantage);
 }
 
-function statusText(report) {
-  if (app.thinking) return 'La IA está pensando…';
-  if (placing()) return `Mina de ${NAMES[app.didactic.mineTurn].toLowerCase()}: elige una casilla de tu mitad.`;
-  if (report.over) {
-    if (report.result === 'draw') return REASONS[report.reason] || 'Tablas';
-    return `${NAMES[report.result]} ganan. ${REASONS[report.reason] || ''}`.trim();
+function engineMode() {
+  if (app.engine === 'local' || !loadConfig().apiKey) return 'local';
+  return 'api';
+}
+
+function paintStatus(report) {
+  statusEl.className = 'status-line';
+  statusEl.replaceChildren();
+  const text = document.createElement('span');
+  if (app.thinking) {
+    statusEl.classList.add('thinking');
+    const spin = document.createElement('i');
+    spin.className = 'spinner';
+    text.textContent = 'La IA está pensando';
+    statusEl.append(spin, text);
+    return;
   }
-  if (app.labHold) return 'Laboratorio: la IA está en pausa.';
-  if (app.ability === 'swap' && app.swapA) return 'Elige la segunda pieza del intercambio.';
-  if (app.ability) return 'Elige el objetivo de la habilidad.';
-  if (report.check) return `Jaque a ${NAMES[side()].toLowerCase()}.`;
-  return `Turno de ${NAMES[side()].toLowerCase()}.`;
+  if (placing()) text.textContent = `Mina de ${NAMES[app.didactic.mineTurn].toLowerCase()}: elige una casilla de tu mitad.`;
+  else if (report.over) {
+    text.textContent = report.result === 'draw'
+      ? (REASONS[report.reason] || 'Tablas')
+      : `${NAMES[report.result]} ganan. ${REASONS[report.reason] || ''}`.trim();
+  } else if (app.labHold) text.textContent = 'Laboratorio: la IA está en pausa.';
+  else if (app.ability === 'swap' && app.swapA) text.textContent = 'Elige la segunda pieza del intercambio.';
+  else if (app.ability) text.textContent = 'Elige el objetivo de la habilidad.';
+  else if (report.check) {
+    statusEl.classList.add('check');
+    text.textContent = 'Jaque';
+  } else text.textContent = `Turno de ${NAMES[side()].toLowerCase()}.`;
+  statusEl.appendChild(text);
 }
 
-function paintClocks() {
+function paintClocks(advantage = material(core()).advantage) {
   const bottom = app.orientation;
   const top = opposite(bottom);
   fillClock(clockTop, top);
   fillClock(clockBottom, bottom);
+  fillCaptures(document.getElementById('captures-top'), top, advantage);
+  fillCaptures(document.getElementById('captures-bottom'), bottom, advantage);
 }
 
 function fillClock(node, color) {
@@ -807,17 +830,26 @@ function fillClock(node, color) {
   who.className = 'who';
   const name = document.createElement('span');
   name.textContent = NAMES[color];
-  const taken = document.createElement('span');
-  taken.className = 'taken';
-  for (const type of core().taken?.[color] || []) {
-    const icon = document.createElement('i');
-    icon.innerHTML = pieceSVG(type, color === 'w' ? 'b' : 'w');
-    taken.appendChild(icon);
-  }
-  who.append(name, taken);
+  who.appendChild(name);
   const time = document.createElement('b');
   time.textContent = app.clocks ? formatClock(left) : '∞';
   node.append(who, time);
+}
+
+function fillCaptures(node, color, advantage) {
+  if (!node) return;
+  node.replaceChildren();
+  for (const type of core().taken?.[color] || []) {
+    const icon = document.createElement('i');
+    icon.innerHTML = pieceSVG(type, color === 'w' ? 'b' : 'w');
+    node.appendChild(icon);
+  }
+  const ahead = color === 'w' ? advantage : -advantage;
+  if (ahead > 0) {
+    const score = document.createElement('b');
+    score.textContent = `+${ahead}`;
+    node.appendChild(score);
+  }
 }
 
 function tick() {
@@ -953,6 +985,8 @@ function wireApiDialog() {
       model: chosen || DEFAULTS.model,
     });
     result.textContent = 'Guardado en este navegador.';
+    app.engine = key.value.trim() ? 'api' : 'local';
+    if (!gameEl.hidden) paint();
   });
   document.getElementById('api-test').addEventListener('click', async () => {
     saveConfig({
@@ -962,7 +996,9 @@ function wireApiDialog() {
     });
     result.textContent = 'Probando…';
     const test = await testConnection();
+    app.engine = test.ok ? 'api' : 'local';
     result.textContent = test.ok ? `Conectada: ${test.detail}` : `No respondió: ${test.detail}. El minimax local sigue disponible.`;
+    if (!gameEl.hidden) paint();
   });
   document.getElementById('api-close').addEventListener('click', () => dialog.close());
 }

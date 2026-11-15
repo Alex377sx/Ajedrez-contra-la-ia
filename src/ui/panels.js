@@ -6,10 +6,13 @@ const NAMES = { w: 'Blancas', b: 'Negras' };
 
 export function mountPanels(root, handlers) {
   const tools = root.querySelector('#tools');
-  const material = root.querySelector('#material');
-  const moves = root.querySelector('#moves');
+  const didactic = root.querySelector('#didactic');
+  const didacticTools = root.querySelector('#didactic-tools');
+  const movesBody = root.querySelector('#moves tbody');
+  const history = root.querySelector('.history');
   const energy = root.querySelector('#energy');
   const abilities = root.querySelector('#abilities');
+  const engineStatus = root.querySelector('#engine-status');
   const chatLog = root.querySelector('#chat-log');
   const form = root.querySelector('#chat-form');
   const input = form.querySelector('input');
@@ -38,57 +41,62 @@ export function mountPanels(root, handlers) {
   return {
     update(model) {
       tools.replaceChildren();
-      if (model.didactic) {
-        const radar = button(model.radar ? 'Radar' : 'Radar', handlers.onRadar, false, 'Verde defendido, rojo atacado, ámbar disputado');
-        radar.classList.toggle('on', model.radar);
-        radar.textContent = model.radar ? 'Radar activo' : 'Radar';
-        tools.append(radar);
-        tools.append(button('Deshacer', handlers.onUndo, !model.canUndo));
-        tools.append(button('Rehacer', handlers.onRedo, !model.canRedo));
-        tools.append(button('Pista', handlers.onHint, model.thinking || model.over, 'Consejo sin decir la jugada'));
-      }
       if (model.labHold) tools.append(button('Reanudar IA', handlers.onResume, false));
       const voice = button(model.speech ? 'Voz activa' : 'Voz', handlers.onSpeech, false, 'Lee la pieza y la casilla');
       voice.classList.toggle('on', model.speech);
       tools.append(voice);
       tools.append(button('Girar', handlers.onFlip, false));
 
-      material.replaceChildren();
-      const label = document.createElement('span');
-      label.textContent = 'Material';
-      const adv = document.createElement('strong');
-      const value = model.advantage || 0;
-      adv.textContent = value === 0 ? '0' : `${value > 0 ? '+' : ''}${value}`;
-      material.append(label, adv);
+      didactic.hidden = !model.didactic;
+      didacticTools.replaceChildren();
+      if (model.didactic) {
+        const radar = button('Radar de control', handlers.onRadar, false, 'Verde defendido, rojo atacado, ámbar disputado');
+        radar.classList.toggle('on', model.radar);
+        didacticTools.append(radar);
+        didacticTools.append(button('Pedir pista', handlers.onHint, model.thinking || model.over, 'Consejo sin decir la jugada'));
+        didacticTools.append(button('Deshacer', handlers.onUndo, !model.canUndo));
+        didacticTools.append(button('Rehacer', handlers.onRedo, !model.canRedo));
+      }
 
-      moves.replaceChildren();
+      engineStatus.classList.toggle('api', model.engine === 'api');
+      engineStatus.querySelector('b').textContent = model.engine === 'api' ? 'API conectada' : 'Motor local';
+
+      movesBody.replaceChildren();
       model.moves.forEach((entry, index) => {
         if (entry.color !== 'w') return;
-        const row = document.createElement('li');
-        const num = document.createElement('span');
+        const row = document.createElement('tr');
+        const num = document.createElement('td');
         num.textContent = `${Math.floor(index / 2) + 1}`;
-        const white = document.createElement('span');
+        const white = document.createElement('td');
         white.textContent = entry.san;
-        row.append(num, white);
-        const black = model.moves[index + 1];
-        const dark = document.createElement('span');
-        dark.textContent = black && black.color === 'b' ? black.san : '';
-        row.appendChild(dark);
-        moves.appendChild(row);
+        const blackMove = model.moves[index + 1];
+        const dark = document.createElement('td');
+        dark.textContent = blackMove && blackMove.color === 'b' ? blackMove.san : '';
+        row.append(num, white, dark);
+        movesBody.appendChild(row);
       });
-      moves.scrollTop = moves.scrollHeight;
+      history.scrollTop = history.scrollHeight;
 
-      const showPowers = Boolean(model.didactic);
-      energy.hidden = !showPowers;
-      abilities.hidden = !showPowers;
-      if (showPowers) {
+      if (model.didactic) {
+        const pool = model.energy?.[model.turn] || 0;
         energy.replaceChildren();
-        for (const color of ['w', 'b']) {
-          const line = document.createElement('p');
-          line.textContent = `${NAMES[color].slice(0, 1)} ${model.energy?.[color] || 0}`;
-          if (color === model.turn) line.className = 'turn';
-          energy.appendChild(line);
-        }
+        const mana = document.createElement('div');
+        mana.className = 'mana';
+        const manaLabel = document.createElement('div');
+        manaLabel.className = 'mana-label';
+        const manaName = document.createElement('span');
+        manaName.textContent = 'Energía';
+        const manaValue = document.createElement('span');
+        manaValue.textContent = String(pool);
+        manaLabel.append(manaName, manaValue);
+        const track = document.createElement('div');
+        track.className = 'mana-track';
+        const fill = document.createElement('div');
+        fill.className = 'mana-fill';
+        fill.style.width = `${Math.min(100, (pool / 10) * 100)}%`;
+        track.appendChild(fill);
+        mana.append(manaLabel, track);
+        energy.appendChild(mana);
         abilities.replaceChildren();
         for (const ability of model.abilities || []) {
           const el = document.createElement('button');
