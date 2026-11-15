@@ -13,6 +13,8 @@ El sitio se publica al empujar `main`. La clave de API se pega en el engranaje y
 
 Para jugar en la misma WiFi, una persona ejecuta `npm start` y crea la sala. La otra abre la dirección que aparece (la IP local) y entra con el código.
 
+Las piezas son el juego Staunton de Colin M.L. Burnett (Cburnett), CC BY-SA 3.0.
+
 ## Pruebas
 
 ```bash

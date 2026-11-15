@@ -208,7 +208,7 @@ function wifiBox() {
   create.textContent = 'Crear sala';
   create.addEventListener('click', createWifiRoom);
   const row = document.createElement('div');
-  row.className = 'choices';
+  row.className = 'join-row';
   const input = document.createElement('input');
   input.maxLength = 4;
   input.placeholder = 'CÓDIGO';

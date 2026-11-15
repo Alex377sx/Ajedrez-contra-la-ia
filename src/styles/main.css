@@ -16,11 +16,18 @@
 }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); }
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
 button, input, select { font: inherit; color: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .4; }
-#app { height: 100%; display: flex; flex-direction: column; }
+#app { min-height: 100dvh; display: flex; flex-direction: column; }
 #setup[hidden], #game[hidden] { display: none !important; }
 
 .top {
@@ -30,6 +37,11 @@ button:disabled { cursor: not-allowed; opacity: .4; }
   justify-content: space-between;
   padding: 0 22px;
   border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  background: rgba(13, 15, 18, 0.92);
+  backdrop-filter: blur(10px);
 }
 .brand { display: flex; align-items: center; gap: 10px; letter-spacing: -0.02em; }
 .mark {
@@ -39,7 +51,8 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 
 .setup {
   width: min(920px, calc(100% - 32px));
-  margin: 48px auto 64px;
+  margin: 28px auto 72px;
+  padding-bottom: 24px;
 }
 .setup h1 { margin: 0 0 8px; font-size: 32px; font-weight: 640; letter-spacing: -0.04em; }
 .lede { margin: 0 0 22px; color: var(--muted); max-width: 62ch; line-height: 1.5; }
@@ -74,7 +87,10 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 .start { margin-top: 16px; padding: 11px 16px; }
 .rules { margin: 16px 0 0; padding-left: 18px; color: var(--muted); }
 .rules li { margin: 6px 0; }
-.lobby { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+.lobby { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; }
+.lobby button.primary { width: 100%; min-height: 44px; }
+.join-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.join-row button { min-height: 44px; }
 .lobby code {
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 32px;
@@ -82,10 +98,13 @@ button:disabled { cursor: not-allowed; opacity: .4; }
   color: var(--text);
 }
 .lobby input {
+  width: 100%;
+  min-width: 0;
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 10px 12px;
+  min-height: 44px;
   letter-spacing: .14em;
   text-transform: uppercase;
   font-family: "JetBrains Mono", ui-monospace, monospace;
@@ -277,17 +296,13 @@ button:disabled { cursor: not-allowed; opacity: .4; }
   pointer-events: none;
 }
 .piece {
-  position: absolute; inset: 7%;
+  position: absolute; inset: 3%;
   display: grid; place-items: center;
   transition: transform .14s ease;
   pointer-events: none;
   filter: drop-shadow(0 2px 1px rgba(0, 0, 0, 0.28));
 }
-.piece svg { width: 100%; height: 100%; }
-.piece.w { color: #f7f4ec; }
-.piece.w svg { fill: #f7f4ec; }
-.piece.b { color: #1a1d22; }
-.piece.b svg { fill: #1a1d22; }
+.piece svg { width: 100%; height: 100%; display: block; }
 .piece.frozen { opacity: .72; }
 .badge { position: absolute; width: 14px; height: 14px; }
 .badge svg { width: 100%; height: 100%; }
@@ -299,9 +314,7 @@ button:disabled { cursor: not-allowed; opacity: .4; }
   margin: -38px 0 0 -36px; pointer-events: none; z-index: 20;
   filter: drop-shadow(0 8px 8px rgba(0, 0, 0, 0.35));
 }
-.ghost svg { width: 100%; height: 100%; }
-.ghost.w svg { fill: #f7f4ec; }
-.ghost.b svg { fill: #1a1d22; }
+.ghost svg { width: 100%; height: 100%; display: block; }
 .promo {
   position: absolute; inset: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
@@ -336,16 +349,36 @@ dialog input, dialog select {
 }
 
 @media (max-width: 1080px) {
-  body { overflow: auto; }
+  .setup { width: min(920px, calc(100% - 20px)); margin-top: 18px; }
+  .setup h1 { font-size: 28px; }
+  .modes, .options { grid-template-columns: 1fr; }
   .table {
-    grid-template-columns: 1fr;
-    height: auto;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    padding: 12px;
+    gap: 12px;
   }
   .stage { order: -1; }
-  .board { width: min(100%, calc(100dvh - 180px)); }
-  .rail-right, .moves, .chat-log { min-height: 180px; }
-  .modes, .options { grid-template-columns: 1fr; }
+  #board-root, .board-frame, .board {
+    width: min(100%, calc(100dvh - 150px));
+  }
+  .rail { overflow: visible; }
+  .rail-actions { margin-top: 8px; }
+  .moves, .chat-log { max-height: 280px; }
+  .choices button, .tools button, .rail-actions button, .ability, .start {
+    min-height: 44px;
+  }
 }
-@media (min-width: 1081px) {
-  body { overflow: hidden; }
+@media (max-width: 640px) {
+  .top { padding: 0 14px; }
+  .top-note { display: none; }
+  .setup h1 { font-size: 26px; }
+  .clock b { font-size: 20px; }
+  .join-row { grid-template-columns: 1fr; }
+  .lobby code { font-size: 26px; letter-spacing: .12em; }
+  .promo button { width: 56px; height: 64px; }
+  #board-root, .board-frame, .board {
+    width: 100%;
+  }
 }
