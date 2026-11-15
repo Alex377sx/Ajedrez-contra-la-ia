@@ -3,6 +3,7 @@ import { ABILITIES, ELEVATED_SQUARES, abilityTargets, canRedo, canUndo, createDi
 import { DEFAULTS, MODELS, loadConfig, requestChat, requestHint, requestMove, saveConfig, testConnection } from './ai/apiClient.js';
 import { mountBoard } from './ui/boardRenderer.js';
 import { capturedGlyphs, mountPanels } from './ui/panels.js';
+import { describeMove, setSpeechEnabled, speak, speechEnabled } from './ui/speech.js';
 
 const NAMES = { w: 'Blancas', b: 'Negras' };
 const REASONS = {
@@ -38,6 +39,7 @@ const app = {
   thinking: false,
   labHold: false,
   animate: null,
+  speech: speechEnabled(),
 };
 
 const setupEl = document.getElementById('setup');
@@ -71,12 +73,23 @@ const panels = mountPanels(document.getElementById('side-root'), {
     aiTurn();
   },
   onFlip: () => { app.orientation = opposite(app.orientation); paint(); },
+  onSpeech: () => {
+    app.speech = !app.speech;
+    setSpeechEnabled(app.speech);
+    if (app.speech) speak('Lector activado. Digo la pieza y la casilla.');
+    paint();
+  },
   onAbility: (type) => armAbility(type),
   onResign: () => resign(),
   onAgain: () => startGame(),
   onSetup: () => showSetup(),
   onChat: (text) => sendChat(text),
 });
+
+if (typeof speechSynthesis !== 'undefined') {
+  speechSynthesis.getVoices();
+  speechSynthesis.addEventListener?.('voiceschanged', () => speechSynthesis.getVoices());
+}
 
 renderSetup();
 wireApiDialog();
@@ -341,6 +354,11 @@ function commitMove(input) {
   const log = app.mode === 'classic' ? app.classic.moves : app.didactic.log;
   const last = log.at(-1);
   app.animate = last ? { from: last.from, to: last.to } : null;
+  if (app.speech && last) {
+    const opponent = app.opponent === 'ai' && last.color !== app.human;
+    const youLabel = app.opponent === 'ai' ? 'Tú' : NAMES[last.color];
+    speak(describeMove({ san: last.san, opponent, youLabel }));
+  }
   soundFor(app.mode === 'didactic' ? app.didactic.lastEvents : eventsFromClassic(before));
   if (app.mode === 'didactic') narrate(app.didactic.lastEvents);
   const report = ended();
@@ -586,6 +604,7 @@ function paint() {
     canUndo: app.mode === 'didactic' && !app.thinking && canUndo(app.didactic),
     canRedo: app.mode === 'didactic' && !app.thinking && canRedo(app.didactic),
     labHold: app.labHold,
+    speech: app.speech,
     thinking: app.thinking,
     over: report.over,
     placing: placing(),

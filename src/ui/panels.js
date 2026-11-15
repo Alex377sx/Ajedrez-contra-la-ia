@@ -96,6 +96,9 @@ export function mountPanels(root, handlers) {
         tools.append(button('Pista', handlers.onHint, model.thinking || model.over));
       }
       if (model.labHold) tools.append(button('Reanudar IA', handlers.onResume, false));
+      const voice = button(model.speech ? 'Voz activa' : 'Voz', handlers.onSpeech, false);
+      voice.classList.toggle('on', model.speech);
+      tools.append(voice);
       tools.append(button('Girar', handlers.onFlip, false));
 
       material.replaceChildren();
