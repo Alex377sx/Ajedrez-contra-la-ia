@@ -312,6 +312,48 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 .sq.last { background-image: linear-gradient(rgba(16, 185, 129, 0.18), rgba(16, 185, 129, 0.18)); }
 .sq.selected { background-image: linear-gradient(rgba(16, 185, 129, 0.28), rgba(16, 185, 129, 0.28)); }
 .sq.check { box-shadow: inset 0 0 0 2px var(--danger); }
+.sq.mate-king { animation: kingpulse .7s ease-in-out 4; }
+@keyframes kingpulse {
+  50% { box-shadow: inset 0 0 0 5px var(--danger); }
+}
+.board-stage { position: relative; width: min(100%, calc(100dvh - 132px), 760px); }
+.board-stage #board-root, .board-stage .board-frame, .board-stage .board { width: 100%; }
+.finale {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  background: rgba(13, 15, 18, 0.45);
+  animation: finale-in .35s ease;
+}
+.finale[hidden] { display: none !important; }
+.finale-card {
+  width: min(320px, calc(100% - 32px));
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 22px 20px 16px;
+  text-align: center;
+  animation: card-in .45s cubic-bezier(.2, .8, .2, 1);
+}
+.finale-card p { margin: 0; color: var(--muted); }
+.finale-card h2 { margin: 6px 0 8px; font-size: 28px; letter-spacing: -0.03em; }
+.finale.mate .finale-card h2 { color: var(--danger); }
+.finale-card button {
+  margin-top: 14px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  border: 0;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-weight: 640;
+}
+@keyframes finale-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(10px) scale(.96); }
+  to { opacity: 1; transform: none; }
+}
 .sq.heat-defended { background-image: radial-gradient(circle, rgba(16, 185, 129, 0.34), transparent 68%); }
 .sq.heat-attacked { background-image: radial-gradient(circle, rgba(212, 102, 106, 0.38), transparent 68%); }
 .sq.heat-contested { background-image: radial-gradient(circle, rgba(214, 176, 92, 0.4), transparent 68%); }
@@ -428,7 +470,7 @@ dialog input, dialog select {
     gap: 12px;
   }
   .stage { order: -1; }
-  #board-root, .board-frame, .board {
+  .board-stage, #board-root, .board-frame, .board {
     width: min(100%, calc(100dvh - 150px));
   }
   .rail { overflow: visible; }
@@ -447,7 +489,7 @@ dialog input, dialog select {
   .join-row { grid-template-columns: 1fr; }
   .lobby code { font-size: 26px; letter-spacing: .12em; }
   .promo button { width: 56px; height: 64px; }
-  #board-root, .board-frame, .board {
+  .board-stage, #board-root, .board-frame, .board {
     width: 100%;
   }
 }

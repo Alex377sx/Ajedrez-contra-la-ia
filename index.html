@@ -16,7 +16,7 @@
         <span class="mark" aria-hidden="true"></span>
         <strong>Ajedrez</strong>
       </div>
-      <span class="top-note">v1.5</span>
+      <span class="top-note">v1.6</span>
     </header>
     <main id="setup" class="setup"></main>
     <main id="game" class="table" hidden>
@@ -38,7 +38,17 @@
         </div>
       </aside>
       <section class="stage">
-        <div id="board-root"></div>
+        <div class="board-stage">
+          <div id="board-root"></div>
+          <div id="finale" class="finale" hidden>
+            <div class="finale-card">
+              <p id="finale-kicker"></p>
+              <h2 id="finale-title"></h2>
+              <p id="finale-detail"></p>
+              <button id="finale-again" type="button">Revancha</button>
+            </div>
+          </div>
+        </div>
         <p id="status-line" class="status-line"></p>
       </section>
       <aside class="rail rail-right">

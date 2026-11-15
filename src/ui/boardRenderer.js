@@ -73,6 +73,7 @@ export function mountBoard(root, handlers) {
       if (view.last && (view.last.from === square || view.last.to === square)) cell.classList.add('last');
       if (view.selected === square) cell.classList.add('selected');
       if (view.checkSq === square) cell.classList.add('check');
+      if (view.mate && view.checkSq === square) cell.classList.add('mate-king');
       if (view.mine === square) cell.classList.add('mine');
       const mark = view.marks?.find((item) => item.sq === square);
       if (mark) cell.classList.add(mark.capture ? 'capture' : 'dot');

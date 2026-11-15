@@ -769,6 +769,7 @@ function paint() {
     promo: Boolean(app.promo),
     promoColor: side(),
     locked: app.thinking,
+    mate: report.reason === 'checkmate',
   });
   const mat = material(core());
   const log = app.mode === 'classic' ? app.classic.moves : app.didactic.log;
@@ -796,7 +797,37 @@ function paint() {
     engine: engineMode(),
   });
   paintStatus(report);
+  paintFinale(report);
   paintClocks(mat.advantage);
+}
+
+function paintFinale(report) {
+  const overlay = document.getElementById('finale');
+  if (!overlay) return;
+  if (!report.over) {
+    overlay.hidden = true;
+    app.finale = null;
+    return;
+  }
+  const key = `${report.result}:${report.reason}`;
+  overlay.hidden = false;
+  if (app.finale === key) return;
+  app.finale = key;
+  const mate = report.reason === 'checkmate';
+  overlay.className = `finale${mate ? ' mate' : ''}`;
+  const kicker = document.getElementById('finale-kicker');
+  const title = document.getElementById('finale-title');
+  const detail = document.getElementById('finale-detail');
+  kicker.textContent = mate ? 'Jaque mate' : (REASONS[report.reason] || 'Fin de la partida');
+  if (report.result === 'draw') {
+    title.textContent = 'Tablas';
+    detail.textContent = REASONS[report.reason] || '';
+  } else {
+    title.textContent = `${NAMES[report.result]} ganan`;
+    if (app.opponent === 'local') detail.textContent = REASONS[report.reason] || '';
+    else detail.textContent = report.result === app.human ? 'Ganaste.' : 'Has perdido.';
+  }
+  if (app.speech) speak(`${kicker.textContent}. ${title.textContent}`);
 }
 
 function engineMode() {
@@ -974,6 +1005,8 @@ function toast(text) {
   clearTimeout(toastEl._t);
   toastEl._t = setTimeout(() => { toastEl.hidden = true; }, 2600);
 }
+
+document.getElementById('finale-again').addEventListener('click', () => startGame());
 
 function wireApiDialog() {
   const open = document.getElementById('open-api');
