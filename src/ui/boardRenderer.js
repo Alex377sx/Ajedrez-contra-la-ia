@@ -2,13 +2,18 @@
  * Tablero y piezas. No decide si una jugada es legal.
  */
 
-import { PIECES } from './pieces.js';
+const FILE = { p: 'P', r: 'R', n: 'N', b: 'B', q: 'Q', k: 'K' };
 
 const STAR = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.2 7.3 4.4 10.8 4.7 8.1 6.9 9 10.2 6 8.4 3 10.2 3.9 6.9 1.2 4.7 4.7 4.4z"/></svg>';
 const FROST = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1v10M2.2 3.2l7.6 5.6M9.8 3.2 2.2 8.8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>';
 
+export function pieceSrc(type, color) {
+  const name = `${color}${FILE[type] || 'P'}.svg`;
+  return new URL(`../../assets/pieces/${name}`, import.meta.url).href;
+}
+
 export function pieceSVG(type, color) {
-  return `<svg class="fig ${color}" viewBox="0 0 50 50" aria-hidden="true">${PIECES[`${type}${color}`] || ''}</svg>`;
+  return `<img class="fig ${color}" src="${pieceSrc(type, color)}" alt="" draggable="false" />`;
 }
 
 export function mountBoard(root, handlers) {

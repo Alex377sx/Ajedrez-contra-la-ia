@@ -13,7 +13,7 @@ El sitio se publica al empujar `main`. La clave de API se pega en el engranaje y
 
 Para jugar en la misma WiFi, una persona ejecuta `npm start` y crea la sala. La otra abre la dirección que aparece (la IP local) y entra con el código.
 
-Las piezas son el juego Gioco, con volumen y el caballo de perfil, el mismo para blancas y negras.
+Las piezas son el juego Cburnett (Lichess / Wikimedia), con contorno oscuro en las blancas.
 
 ## Pruebas
 
