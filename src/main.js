@@ -507,7 +507,11 @@ function commitMove(input) {
   if (app.mode === 'didactic') narrate(app.didactic.lastEvents);
   const report = ended();
   if (report.over) pauseClock();
-  paint();
+  try {
+    paint();
+  } catch (error) {
+    console.error(error);
+  }
   if (!report.over && app.opponent === 'ai' && side() !== app.human) aiTurn();
 }
 
@@ -620,16 +624,33 @@ async function aiTurn() {
   const token = ++app.token;
   app.thinking = true;
   app.selected = null;
-  paint();
+  try { paint(); } catch (error) { console.error(error); }
   await delay(40);
-  const choice = await requestMove({
-    mode: app.mode,
-    state: app.mode === 'classic' ? app.classic : app.didactic,
-    color: side(),
-  });
+  let choice = null;
+  try {
+    choice = await requestMove({
+      mode: app.mode,
+      state: app.mode === 'classic' ? app.classic : app.didactic,
+      color: side(),
+    });
+  } catch (error) {
+    console.error(error);
+  }
+  if (!choice) {
+    const reply = legal()[0];
+    if (reply) {
+      choice = {
+        from: reply.from,
+        to: reply.to,
+        promotion: reply.promotion,
+        chat_message: 'Sigo en la partida.',
+        source: 'minimax',
+      };
+    }
+  }
   app.thinking = false;
   if (token !== app.token || !choice || ended().over || side() === app.human) {
-    paint();
+    try { paint(); } catch (error) { console.error(error); }
     return;
   }
   if (app.mode === 'didactic' && choice.ability) {

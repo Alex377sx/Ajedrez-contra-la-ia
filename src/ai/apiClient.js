@@ -311,7 +311,7 @@ async function postJSON(url, body, apiKey) {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(6000),
     });
   } catch (error) {
     return { network: true, error: error.message || 'red' };
@@ -426,8 +426,13 @@ function sanitizeChat(text) {
   return clean.slice(0, 240) || localTaunt();
 }
 
+function onGitHubPages() {
+  return typeof location !== 'undefined' && /(^|\.)github\.io$/.test(location.hostname);
+}
+
 export async function requestMove({ mode, state, color }) {
   const local = () => fallbackMove(mode, state);
+  if (!loadConfig().apiKey || onGitHubPages()) return local();
   const view = snapshotText(mode, state, color);
   try {
     const first = extractJSON(await complete([

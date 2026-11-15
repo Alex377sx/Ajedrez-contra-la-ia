@@ -230,7 +230,7 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 }
 .ability.on { border-color: rgba(16, 185, 129, 0.8); color: var(--accent); }
 .rail-actions { margin-top: auto; }
-.history, .chat { flex: 1 1 0; min-height: 0; }
+.history, .chat { flex: 1 1 0; min-height: 140px; }
 .history { overflow: auto; }
 .chat { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 8px; }
 .moves {

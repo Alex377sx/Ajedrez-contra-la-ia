@@ -58,11 +58,14 @@ export function mountPanels(root, handlers) {
         didacticTools.append(button('Rehacer', handlers.onRedo, !model.canRedo));
       }
 
-      engineStatus.classList.toggle('api', model.engine === 'api');
-      engineStatus.querySelector('b').textContent = model.engine === 'api' ? 'API conectada' : 'Motor local';
+      if (engineStatus) {
+        engineStatus.classList.toggle('api', model.engine === 'api');
+        const label = engineStatus.querySelector('b');
+        if (label) label.textContent = model.engine === 'api' ? 'API conectada' : 'Motor local';
+      }
 
-      movesBody.replaceChildren();
-      model.moves.forEach((entry, index) => {
+      movesBody?.replaceChildren();
+      (model.moves || []).forEach((entry, index) => {
         if (entry.color !== 'w') return;
         const row = document.createElement('tr');
         const num = document.createElement('td');
@@ -73,9 +76,9 @@ export function mountPanels(root, handlers) {
         const dark = document.createElement('td');
         dark.textContent = blackMove && blackMove.color === 'b' ? blackMove.san : '';
         row.append(num, white, dark);
-        movesBody.appendChild(row);
+        movesBody?.appendChild(row);
       });
-      history.scrollTop = history.scrollHeight;
+      if (history) history.scrollTop = history.scrollHeight;
 
       if (model.didactic) {
         const pool = model.energy?.[model.turn] || 0;
