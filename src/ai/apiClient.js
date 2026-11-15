@@ -287,6 +287,13 @@ export function fallbackMove(mode, state) {
   return wire(minimaxClassic(state));
 }
 
+function canUseLocalProxy() {
+  if (typeof location === 'undefined') return false;
+  const host = location.hostname;
+  if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local')) return true;
+  return /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(host);
+}
+
 function isXai(endpoint) {
   try {
     return new URL(endpoint).hostname === 'api.x.ai';
@@ -328,7 +335,7 @@ async function complete(messages) {
   const payload = { model: config.model, messages, temperature: 0.4 };
   const direct = await postJSON(config.endpoint, payload, config.apiKey);
   if (direct.ok) return messageText(direct.data);
-  if (direct.network && isXai(config.endpoint)) {
+  if (direct.network && isXai(config.endpoint) && canUseLocalProxy()) {
     const proxied = await postJSON('/api/ai', { ...payload, apiKey: config.apiKey }, null);
     if (proxied.ok) return messageText(proxied.data);
     throw new Error(proxied.error || direct.error || 'API');
