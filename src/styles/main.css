@@ -71,7 +71,16 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 .mode span, .fine, .hint, .lobby p { color: var(--muted); line-height: 1.45; }
 .field { display: flex; flex-direction: column; gap: 8px; }
 .field > label { color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
-.choices, .tools, .rail-actions, .dialog-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.choices, .tools, .rail-actions, .dialog-actions, .admin-ghost .choices { display: flex; flex-wrap: wrap; gap: 6px; }
+.admin-ghost {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.admin-ghost[hidden] { display: none !important; }
 .choices button, .tools button, .rail-actions button, .dialog-actions button, .chat-form button, .start, .lobby button {
   background: transparent;
   border: 1px solid var(--line);

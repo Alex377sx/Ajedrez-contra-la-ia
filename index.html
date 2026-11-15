@@ -16,12 +16,20 @@
         <span class="mark" aria-hidden="true"></span>
         <strong>Ajedrez</strong>
       </div>
-      <span class="top-note">v1.6</span>
+      <span class="top-note">v1.7</span>
     </header>
     <main id="setup" class="setup"></main>
     <main id="game" class="table" hidden>
       <aside class="rail rail-left">
         <div id="tools" class="tools"></div>
+        <div id="admin-ghost" class="admin-ghost" hidden>
+          <button id="ghost-toggle" type="button">IA por mí</button>
+          <div class="choices">
+            <button type="button" data-delay="2000">2s</button>
+            <button type="button" data-delay="5000">5s</button>
+            <button type="button" data-delay="10000">10s</button>
+          </div>
+        </div>
         <div id="clock-top" class="clock"></div>
         <div id="captures-top" class="captures"></div>
         <div id="didactic" class="didactic-box" hidden>

@@ -1,6 +1,6 @@
 import { createGame, gameStatus, legalMoves as classicLegal, material, opposite, playMove as playClassic, insufficientMaterial, sqOf } from './core/chessEngine.js';
 import { ABILITIES, ELEVATED_SQUARES, abilityTargets, canRedo, canUndo, createDidactic, heatMap, legalMoves as didacticLegal, placeMine, playMove as playDidactic, redo, suggestedMine, tryAbility, undo } from './modes/didacticMode.js';
-import { DEFAULTS, MODELS, loadConfig, requestChat, requestHint, requestMove, saveConfig, testConnection } from './ai/apiClient.js';
+import { DEFAULTS, MODELS, fallbackMove, loadConfig, requestChat, requestHint, requestMove, saveConfig, testConnection } from './ai/apiClient.js';
 import { mountBoard, pieceSVG } from './ui/boardRenderer.js';
 import { mountPanels } from './ui/panels.js';
 import { describeMove, setSpeechEnabled, speak, speechEnabled } from './ui/speech.js';
@@ -19,6 +19,20 @@ const REASONS = {
   check: 'Jaque',
   playing: '',
 };
+
+function loadGhost() {
+  try {
+    const raw = JSON.parse(localStorage.getItem('ajedrez.ghost') || '{}');
+    const delay = [2000, 5000, 10000].includes(raw.delay) ? raw.delay : 5000;
+    return { on: Boolean(raw.on), delay };
+  } catch {
+    return { on: false, delay: 5000 };
+  }
+}
+
+function saveGhost() {
+  localStorage.setItem('ajedrez.ghost', JSON.stringify({ on: app.ghost, delay: app.ghostDelay }));
+}
 
 const app = {
   mode: 'classic',
@@ -44,6 +58,11 @@ const app = {
   engine: null,
   net: null,
   applyingRemote: false,
+  isAdmin: false,
+  ghost: loadGhost().on,
+  ghostDelay: loadGhost().delay,
+  ghostToken: 0,
+  ghostArmed: false,
 };
 
 const setupEl = document.getElementById('setup');
@@ -265,6 +284,7 @@ async function createWifiRoom() {
 }
 
 async function joinWifiRoom(code) {
+  app.isAdmin = false;
   try {
     const net = await connectWifi();
     net.send({ type: 'join', room: code });
@@ -279,6 +299,7 @@ function onNet(msg) {
     return;
   }
   if (msg.type === 'lobby') {
+    app.isAdmin = msg.role === 'host';
     showLobby(msg);
     return;
   }
@@ -363,10 +384,13 @@ function beginMatch({ color, mode, clock }) {
     : 'Partida clásica. Las jugadas ilegales no entran.');
   paint();
   if (app.opponent === 'ai' && side() !== app.human && !placing()) aiTurn();
+  armGhost();
 }
 
 function showSetup() {
   pauseClock();
+  stopGhost();
+  app.isAdmin = false;
   app.net?.close();
   app.net = null;
   renderSetup();
@@ -473,6 +497,7 @@ function chooseMove(moves, to) {
 }
 
 function commitMove(input) {
+  if (!app.applyingRemote) stopGhost();
   if (sendAction({ kind: 'move', input })) return;
   if (timeLeft(side()) <= 0) {
     flag(side());
@@ -513,6 +538,7 @@ function commitMove(input) {
     console.error(error);
   }
   if (!report.over && app.opponent === 'ai' && side() !== app.human) aiTurn();
+  armGhost();
 }
 
 function eventsFromClassic(before) {
@@ -541,6 +567,7 @@ function placeUserMine(square) {
   }
   paint();
   if (app.didactic.phase === 'play' && app.opponent === 'ai' && side() !== app.human) aiTurn();
+  armGhost();
 }
 
 function armAbility(type) {
@@ -797,6 +824,7 @@ function paint() {
     engine: engineMode(),
   });
   paintStatus(report);
+  paintAdmin();
   paintFinale(report);
   paintClocks(mat.advantage);
 }
@@ -858,6 +886,13 @@ function paintStatus(report) {
   else if (report.check) {
     statusEl.classList.add('check');
     text.textContent = 'Jaque';
+  }   else if (app.ghostArmed && side() === app.human) {
+    statusEl.classList.add('thinking');
+    const spin = document.createElement('i');
+    spin.className = 'spinner';
+    text.textContent = 'Pensando';
+    statusEl.append(spin, text);
+    return;
   } else text.textContent = `Turno de ${NAMES[side()].toLowerCase()}.`;
   statusEl.appendChild(text);
 }
@@ -1005,6 +1040,79 @@ function toast(text) {
   clearTimeout(toastEl._t);
   toastEl._t = setTimeout(() => { toastEl.hidden = true; }, 2600);
 }
+
+function stopGhost() {
+  app.ghostToken += 1;
+  clearTimeout(app.ghostTimer);
+  app.ghostArmed = false;
+}
+
+function ghostShould() {
+  return app.opponent === 'wifi'
+    && app.isAdmin
+    && app.ghost
+    && !ended().over
+    && !placing()
+    && side() === app.human;
+}
+
+function armGhost() {
+  stopGhost();
+  if (!ghostShould()) return;
+  const token = app.ghostToken;
+  app.ghostArmed = true;
+  try { paintStatus(ended()); } catch { /* el reloj sigue y el rival no ve este aviso */ }
+  app.ghostTimer = setTimeout(() => {
+    if (token !== app.ghostToken || !ghostShould()) return;
+    app.ghostArmed = false;
+    const state = app.mode === 'classic' ? app.classic : app.didactic;
+    let move = null;
+    try { move = fallbackMove(app.mode, state); } catch { move = null; }
+    if (!move) {
+      const reply = legal()[0];
+      if (!reply) return;
+      move = reply;
+    }
+    commitMove({
+      from: move.from,
+      to: move.to,
+      promotion: move.promotion || null,
+      via: move.via ?? null,
+      kind: move.kind,
+    });
+  }, app.ghostDelay);
+}
+
+function paintAdmin() {
+  const box = document.getElementById('admin-ghost');
+  if (!box) return;
+  box.hidden = !(app.opponent === 'wifi' && app.isAdmin && !gameEl.hidden);
+  const toggle = document.getElementById('ghost-toggle');
+  toggle.classList.toggle('on', app.ghost);
+  toggle.textContent = app.ghost ? 'IA jugando por ti' : 'IA por mí';
+  box.querySelectorAll('[data-delay]').forEach((button) => {
+    button.classList.toggle('on', Number(button.dataset.delay) === app.ghostDelay);
+  });
+}
+
+document.getElementById('ghost-toggle').addEventListener('click', () => {
+  app.ghost = !app.ghost;
+  saveGhost();
+  if (app.ghost) armGhost();
+  else {
+    stopGhost();
+    try { paintStatus(ended()); } catch { /* sin partida */ }
+  }
+  paintAdmin();
+});
+document.querySelectorAll('#admin-ghost [data-delay]').forEach((button) => {
+  button.addEventListener('click', () => {
+    app.ghostDelay = Number(button.dataset.delay);
+    saveGhost();
+    if (app.ghost) armGhost();
+    paintAdmin();
+  });
+});
 
 document.getElementById('finale-again').addEventListener('click', () => startGame());
 
