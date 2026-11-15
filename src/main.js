@@ -4,7 +4,7 @@ import { DEFAULTS, MODELS, fallbackMove, loadConfig, requestChat, requestHint, r
 import { mountBoard, pieceSVG } from './ui/boardRenderer.js';
 import { mountPanels } from './ui/panels.js';
 import { describeMove, setSpeechEnabled, speak, speechEnabled } from './ui/speech.js';
-import { openSocket } from './net/wifi.js';
+import { openMatch } from './net/wifi.js';
 
 const NAMES = { w: 'Blancas', b: 'Negras' };
 const REASONS = {
@@ -126,7 +126,7 @@ function renderSetup() {
   title.textContent = 'Elige cómo pelear';
   const lede = document.createElement('p');
   lede.className = 'lede';
-    lede.textContent = 'Clásico o didáctico. Contra la IA, en el mismo dispositivo, o con alguien en la misma WiFi.';
+    lede.textContent = 'Clásico o didáctico. Contra la IA, en el mismo dispositivo, o en una sala con otra persona.';
   const modes = document.createElement('div');
   modes.className = 'modes';
   modes.append(
@@ -139,7 +139,7 @@ function renderSetup() {
     choiceField('Rival', [
       ['ai', 'Inteligencia'],
       ['local', 'Mismo dispositivo'],
-      ['wifi', 'Misma WiFi'],
+      ['wifi', 'Multijugador'],
     ], app.opponent, (value) => { app.opponent = value; renderSetup(); }),
     choiceField('Color', [
       ['w', 'Blancas'],
@@ -221,7 +221,7 @@ function wifiBox() {
   const box = document.createElement('section');
   box.className = 'lobby';
   const copy = document.createElement('p');
-  copy.textContent = 'Una persona crea la sala en el equipo donde corre el juego. La otra abre esa misma dirección, en la misma WiFi, y entra con el código.';
+  copy.textContent = 'Crea una sala y pasa el código. La otra persona abre esta misma página y entra con ese código.';
   const create = document.createElement('button');
   create.type = 'button';
   create.className = 'primary';
@@ -253,7 +253,9 @@ function showLobby(msg) {
   const code = document.createElement('code');
   code.textContent = msg.room;
   const copy = document.createElement('p');
-  copy.textContent = 'En el otro dispositivo abre una de estas direcciones y únete con el código.';
+  copy.textContent = msg.online
+    ? 'Pasa el código. La otra persona abre esta misma página, elige Multijugador y pulsa Unirse.'
+    : 'En el otro dispositivo abre una de estas direcciones y únete con el código.';
   const urls = document.createElement('p');
   urls.textContent = (msg.urls || []).join('   ');
   box.append(title, code, copy, urls);
@@ -262,17 +264,19 @@ function showLobby(msg) {
 
 async function connectWifi() {
   app.net?.close();
-  const net = openSocket();
-  await net.ready;
+  const net = await openMatch();
   app.net = net;
   net.listen(onNet);
   return net;
 }
 
 async function createWifiRoom() {
+  if (app.opening) return;
+  app.opening = true;
+  toast('Abriendo sala…');
   try {
     const net = await connectWifi();
-    net.send({
+    await net.send({
       type: 'create',
       mode: app.mode,
       clock: app.clockKind,
@@ -280,16 +284,23 @@ async function createWifiRoom() {
     });
   } catch (error) {
     toast(error.message);
+  } finally {
+    app.opening = false;
   }
 }
 
 async function joinWifiRoom(code) {
+  if (app.opening) return;
+  app.opening = true;
   app.isAdmin = false;
+  toast('Buscando la sala…');
   try {
     const net = await connectWifi();
-    net.send({ type: 'join', room: code });
+    await net.send({ type: 'join', room: code });
   } catch (error) {
     toast(error.message);
+  } finally {
+    app.opening = false;
   }
 }
 
@@ -299,11 +310,13 @@ function onNet(msg) {
     return;
   }
   if (msg.type === 'lobby') {
+    toastEl.hidden = true;
     app.isAdmin = msg.role === 'host';
     showLobby(msg);
     return;
   }
   if (msg.type === 'begin') {
+    toastEl.hidden = true;
     beginMatch({ color: msg.color, mode: msg.mode, clock: msg.clock });
     return;
   }

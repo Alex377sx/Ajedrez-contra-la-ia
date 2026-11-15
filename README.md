@@ -11,7 +11,7 @@ https://alex377sx.github.io/Ajedrez-contra-la-ia/
 
 El sitio se publica al empujar `main`. La clave de API se pega en el engranaje y queda en el navegador. El endpoint por defecto es `https://api.x.ai/v1/chat/completions`, con `grok-3` o `grok-3-mini`. Si no hay clave, el navegador bloquea la llamada o la jugada no es legal, mueve un minimax local.
 
-Para jugar en la misma WiFi, una persona ejecuta `npm start` y crea la sala. La otra abre la dirección que aparece (la IP local) y entra con el código.
+En Multijugador, una persona pulsa Crear sala y pasa el código. La otra abre la misma página y pulsa Unirse. Si el juego corre con `npm start` en la misma WiFi, la sala usa ese equipo y muestra su dirección local.
 
 Las piezas son el juego Cburnett (Lichess / Wikimedia), con contorno oscuro en las blancas.
 

@@ -1,22 +1,17 @@
 /**
- * Sala por WiFi. El anfitrión corre este proyecto y el otro dispositivo entra al mismo origen.
+ * Sala de dos. Si esta página corre con el servidor local, usa esa WiFi.
+ * En GitHub Pages los dos navegadores se encuentran con el código.
  */
 
-export function openSocket() {
-  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const socket = new WebSocket(`${protocol}//${location.host}/ws`);
-  let opened = false;
-  const ready = new Promise((resolve, reject) => {
-    socket.addEventListener('open', () => {
-      opened = true;
-      resolve();
-    });
-    socket.addEventListener('error', () => {
-      if (!opened) reject(new Error('En esta dirección no hay sala. Ábrela desde el equipo anfitrión, en la misma WiFi.'));
-    });
-  });
+import { createCloudSession } from './cloud.js';
+
+function onGitHubPages() {
+  return typeof location !== 'undefined' && /(^|\.)github\.io$/.test(location.hostname);
+}
+
+function wrapSocket(socket) {
   return {
-    ready,
+    ready: Promise.resolve(),
     send(message) {
       if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
     },
@@ -33,6 +28,43 @@ export function openSocket() {
       socket.close();
     },
   };
+}
+
+function tryLocal(timeout = 1200) {
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return new Promise((resolve) => {
+    let socket;
+    try {
+      socket = new WebSocket(`${protocol}//${location.host}/ws`);
+    } catch {
+      resolve(null);
+      return;
+    }
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(value);
+    };
+    const timer = setTimeout(() => {
+      socket.close();
+      finish(null);
+    }, timeout);
+    socket.addEventListener('open', () => finish(wrapSocket(socket)));
+    socket.addEventListener('error', () => {
+      socket.close();
+      finish(null);
+    });
+  });
+}
+
+export async function openMatch() {
+  if (!onGitHubPages()) {
+    const local = await tryLocal();
+    if (local) return local;
+  }
+  return createCloudSession();
 }
 
 export async function hostAddresses() {
